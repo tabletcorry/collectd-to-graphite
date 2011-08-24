@@ -20,7 +20,8 @@ var net = require("net");
 var assert = require("assert");
 var fs = require('fs');
 
-var types = fs.readFileSync('./types.db', encoding='utf8').split("\n");
+var types = fs.readFileSync('/usr/share/collectd/types.db', encoding='utf8').split("\n");
+types.concat(fs.readFileSync('/usr/local/share/collectd/rfi-types.db', encoding='utf8').split("\n"));
 
 var typesObj = new Object;
 
@@ -42,7 +43,6 @@ for (var i in types) {
     }
   }
 }
-
 
 
 try {
@@ -78,10 +78,36 @@ var request_handler = function(request, response) {
           continue;
         }
 
-        name = "agents." + name.replace(/\./g, "_").replace(/\//g, ".");
+        var name_parts = name.replace(/\./g, "_").replace(/\//g, ".").split(".");
+        var rebuild = ["agents"]
+        var host = name_parts[0].split(/_/)[0]
+        rebuild = rebuild.concat(host)
+        var plugin = name_parts[1].split("-")
+        rebuild = rebuild.concat(plugin[0])
+        if (plugin.length > 1) {
+          var plugin_instance = plugin.slice(1).join("-")
+          rebuild = rebuild.concat(plugin_instance)
+        }
+        plugin = plugin[0]
+        var type = name_parts[2].split("-")
+        if (type[0] != plugin) {
+          rebuild = rebuild.concat(type[0])
+        }
+        if (type.length > 1) {
+          var type_instance = type.slice(1).join("-")
+          rebuild = rebuild.concat(type_instance)
+        }
+        type = type[0]
+        name = rebuild.join(".")
         if ( values.length > 2 ) {
-          var metric = name.split(".")[3];
-          name = name + "_" + typesObj[metric][v - 1];
+          var metric = name_parts[2];
+          index = metric.search(/-/)
+          if (index > -1) {
+            metric = /^([\w]+)-(.*)$/.exec(metric);
+          } else {
+            metric = [ "", metric]
+          }
+          name = name + "." + typesObj[metric[1]][v - 1];
         }
         message = [name, values[v], time].join(" ");
         graphite_connection.write(message + "\n");
