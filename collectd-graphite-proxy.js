@@ -81,8 +81,9 @@ var request_handler = function(request, response) {
         var name_parts = name.replace(/\./g, "_").replace(/\//g, ".").split(".");
 
         // Start to construct the new name
-        var rebuild = ["agents"]
+        var rebuild = ["hosts"]
 
+        // Strip off the domain name of the host
         var host = name_parts[0].split(/_/)[0]
         rebuild = rebuild.concat(host)
 
