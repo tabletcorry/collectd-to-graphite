@@ -56,11 +56,31 @@ graphite_connection.on("error", function() {
   throw new Error("Connection error");
 });
 
+var fragment = ""
+
 var request_handler = function(request, response) {
   var putval_re = /^PUTVAL ([^ ]+)(?: ([^ ]+=[^ ]+)?) ([0-9.]+)(:.*)/;
   request.addListener("data", function(chunk) {
-    metrics = chunk.toString().split("\n");
-    for (var i in metrics) {
+    metrics = chunk.toString().split("\r\n");
+
+    if ( fragment.length > 0 ) {
+      // Discard the fragment if the new line is well formed
+      //  I have never seen this, but it may be possible
+      if ( String(metrics[0]).indexOf("PUTVAL") < 0 ) {
+        metrics[0] = fragment.concat(metrics[0])
+      }
+      fragment = ""
+    }
+    // If the last line is not empty, then this chunk is likely split
+    //  in two. So, we will store the fragment for the next round
+    //  The fragment is not used in this run, as it is corrupted and may
+    //  actaully pass the regex (and mess up the DB)
+    if ( String(metrics[metrics.length-1]).length != 0 ) {
+      fragment = metrics[metrics.length-1]
+      metrics[metrics.length-1] = ""
+    }
+
+    for (var i=0; i<metrics.length; i++) {
       var m = putval_re.exec(metrics[i]);
       if (!m) {
         continue;
